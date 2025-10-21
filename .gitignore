@@ -1,0 +1,15 @@
+# Ignorar o ambiente virtual Python
+venv/
+.venv/
+
+# Ignorar arquivos de cache e outros gerados pelo Python
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+
+# Ignorar logs, dumps e outros arquivos temporários
+*.log
+*.tmp
+*.swp
+
