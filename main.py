@@ -1,26 +1,26 @@
 import cv2
 import mediapipe as mp
 import time
+import math
 
 # --- Inicialização ---
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
 
-# --- Configurações da Lógica de Queda v2 ---
-
-# ESTADO "DEITADO"
-# Se os quadris estiverem abaixo de 70% da altura do frame
-LYING_POSTURE_THRESHOLD = 0.7
+# --- Configurações da Lógica de Queda v3 ---
 
 # ESTADO "PERMANÊNCIA"
-FALL_TIME_THRESHOLD = 2.0  # Segundos deitado *após impacto* para considerar queda
+FALL_TIME_THRESHOLD = 3.0  # Segundos deitado *após impacto* para considerar queda
 
 # ESTADO "IMPACTO" (Velocidade Vertical)
-# Este valor é em "unidades de frame normalizadas por segundo"
-# 0.5 significa mover-se metade da altura do frame em 1 segundo.
-# Pode precisar de ajuste (aumente se disparar muito fácil, diminua se não pegar quedas)
-VELOCITY_THRESHOLD = 0.6
+VELOCITY_THRESHOLD = 0.5  # Limite de velocidade de queda (unidades norm/seg)
+
+# ESTADO "DEITADO" (Aspect Ratio)
+# Se largura > altura * threshold, considera deitado.
+# 1.0 = largura > altura
+# 1.2 = largura > 120% da altura (mais robusto para agachamentos)
+ASPECT_RATIO_THRESHOLD = 1.2
 
 # --- Variáveis de Rastreamento de Estado ---
 is_lying = False
@@ -32,8 +32,7 @@ last_y_hip_mid = 0
 last_frame_time = 0
 
 # --- Captura de Vídeo ---
-# 0 para webcam, ou "caminho/para/video.mp4"
-VIDEO_SOURCE = 0
+VIDEO_SOURCE = 0  # 0 para webcam
 cap = cv2.VideoCapture(VIDEO_SOURCE)
 
 if not cap.isOpened():
@@ -41,17 +40,10 @@ if not cap.isOpened():
     exit()
 
 while cap.isOpened():
-    is_video_file = isinstance(VIDEO_SOURCE, str)
-
     success, frame = cap.read()
     if not success:
-        if is_video_file:
-            print("Fim do vídeo. Reiniciando...")
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            continue
-        else:
-            print("Ignorando frame vazio.")
-            continue
+        print("Ignorando frame vazio.")
+        continue
 
     frame_height, frame_width, _ = frame.shape
     current_time = time.time()
@@ -71,26 +63,19 @@ while cap.isOpened():
                                    thickness=2, circle_radius=2)
         )
 
-        # --- Lógica de Detecção de Queda v2 ---
+        # --- Lógica de Detecção de Queda v3 ---
         try:
             landmarks = results.pose_landmarks.landmark
-            y_hip_left = landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y
-            y_hip_right = landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y
-            y_hip_mid = (y_hip_left + y_hip_right) / 2
 
             # --- 1. Cálculo de Velocidade (Detecção de Impacto) ---
+            # (Igual à V2)
+            y_hip_mid = (landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y +
+                         landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y) / 2
+
             delta_t = current_time - last_frame_time
-
-            # Evitar divisão por zero no primeiro frame ou se o tempo for muito curto
             if last_frame_time > 0 and delta_t > 0.01:
-                # delta_y > 0 significa movimento para BAIXO
                 delta_y = y_hip_mid - last_y_hip_mid
-                # Velocidade em unidades normalizadas por segundo
                 velocity_y = delta_y / delta_t
-
-                # Exibir velocidade para debug
-                cv2.putText(frame, f"Vel_Y: {velocity_y:.2f}", (50, 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
                 if velocity_y > VELOCITY_THRESHOLD:
                     if not potential_impact_detected:
@@ -98,20 +83,47 @@ while cap.isOpened():
                             f"LOG: Impacto potencial detectado! Vel_Y: {velocity_y:.2f}")
                     potential_impact_detected = True
 
-            # Atualizar valores para o próximo frame
             last_y_hip_mid = y_hip_mid
             last_frame_time = current_time
 
-            # --- 2. Verificação de Estado (Deitado) ---
-            current_lying_threshold = frame_height * LYING_POSTURE_THRESHOLD
-            y_hip_pixel = y_hip_mid * frame_height
+            # --- 2. Verificação de Estado (Aspect Ratio) ---
+            # Calcular a "caixa" (bounding box) da pose
+            x_min, y_min = frame_width, frame_height
+            x_max, y_max = 0, 0
 
-            # Desenha a linha limite
-            cv2.line(frame, (0, int(current_lying_threshold)),
-                     (frame_width, int(current_lying_threshold)),
-                     (0, 255, 255), 2)
+            for landmark in landmarks:
+                # Usa apenas landmarks visíveis
+                if landmark.visibility < 0.3:
+                    continue
 
-            if y_hip_pixel > current_lying_threshold:
+                # Converte coordenadas normalizadas para pixels
+                x = int(landmark.x * frame_width)
+                y = int(landmark.y * frame_height)
+
+                x_min = min(x_min, x)
+                y_min = min(y_min, y)
+                x_max = max(x_max, x)
+                y_max = max(y_max, y)
+
+            # Adiciona uma pequena margem
+            x_min = max(0, x_min - 10)
+            y_min = max(0, y_min - 10)
+            x_max = min(frame_width, x_max + 10)
+            y_max = min(frame_height, y_max + 10)
+
+            # Calcular altura e largura do corpo
+            body_height = y_max - y_min
+            body_width = x_max - x_min
+
+            # Desenha a caixa no frame (para debug)
+            cv2.rectangle(frame, (x_min, y_min),
+                          (x_max, y_max), (0, 255, 0), 2)
+
+            # Lógica: "Está deitado?"
+            is_currently_lying = (
+                body_width > body_height * ASPECT_RATIO_THRESHOLD) and (body_height > 0)
+
+            if is_currently_lying:
                 # Pessoa está na posição "deitada"
 
                 # --- 3. Verificação de Permanência (Pós-Impacto) ---
@@ -122,39 +134,41 @@ while cap.isOpened():
                         time_lying_started = time.time()
                         print("LOG: Posição deitada PÓS-IMPACTO. Iniciando timer...")
                     else:
-                        # Se continua deitado, verificar o tempo
                         time_elapsed = time.time() - time_lying_started
-
-                        cv2.putText(frame, f"Deitado por: {time_elapsed:.1f}s", (50, 100),
+                        cv2.putText(frame, f"Deitado por: {time_elapsed:.1f}s", (x_min, y_min - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
                         if time_elapsed > FALL_TIME_THRESHOLD:
                             # --- ALERTA DE QUEDA ---
-                            print("ALERTA: QUEDA DETECTADA (IMPACTO + PERMANÊNCIA)!")
+                            print(
+                                "ALERTA: QUEDA DETECTADA (IMPACTO + FORMA + PERMANÊNCIA)!")
                             cv2.rectangle(
                                 frame, (0, 0), (frame_width, 60), (0, 0, 255), -1)
                             cv2.putText(frame, "ALERTA DE QUEDA!", (10, 40),
                                         cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
             else:
-                # Pessoa não está deitada (levantou)
+                # Pessoa NÃO está deitada (levantou ou está em pé/sentada)
                 if is_lying or potential_impact_detected:
                     print("LOG: Pessoa levantou ou não está deitada. Resetando estado.")
-                # Reseta todos os estados
+
+                # --- O RESET QUE FALTAVA ---
                 is_lying = False
                 time_lying_started = 0
                 potential_impact_detected = False
 
         except Exception as e:
-            print(f"Erro ao processar landmarks: {e}")
+            # Em caso de erro (ex: pessoa saiu do frame), reseta tudo
+            # print(f"Erro: {e}") # Descomente para debug
             is_lying = False
             time_lying_started = 0
             potential_impact_detected = False
 
     # --- Exibição ---
-    cv2.imshow('Monitoramento de Quedas - Protótipo v2 (com Velocidade)', frame)
+    WINDOW_NAME = 'Monitoramento de Quedas - Protótipo v3 (com Aspect Ratio)'
+    cv2.imshow(WINDOW_NAME, frame)
 
-    delay = 1 if is_video_file else 5
-    if cv2.waitKey(delay) & 0xFF == ord('q'):
+    key = cv2.waitKey(5) & 0xFF
+    if key == ord('q') or cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
         break
 
 # --- Finalização ---
