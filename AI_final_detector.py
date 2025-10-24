@@ -38,6 +38,7 @@ alert_start_time = 0
 
 # --- Captura de Vídeo ---
 VIDEO_SOURCE = 0
+# VIDEO_SOURCE = "http://192.168.141.91:8080/video"
 cap = cv2.VideoCapture(VIDEO_SOURCE)
 if not cap.isOpened():
     print(f"Erro: Não foi possível abrir a fonte de vídeo: {VIDEO_SOURCE}")
@@ -101,7 +102,7 @@ while cap.isOpened():
         ### Silenciar prints de "ruído" ###
         # print("Alerta resetado.") # Silenciado para o back-end
 
-    # A parte VISUAL (a janela) ainda é útil para você testar
+    # A parte VISUAL (a janela)
     if is_alert_active:
         cv2.rectangle(frame, (0, 0), (frame_width, 60), (0, 0, 255), -1)
         cv2.putText(frame, f"ALERTA: {prediction_label}!", (10, 40),
@@ -110,7 +111,7 @@ while cap.isOpened():
         # Você pode comentar as 4 linhas abaixo se não quiser nem o
         # status "NORMAL" na tela, apenas o alerta vermelho.
         # ({prediction_confidence:.0%})"
-        status_text = f"Status: {prediction_label} "
+        status_text = f"Status: {LABELS[0]} "
         color = (0, 255, 0)
         cv2.rectangle(frame, (0, 0), (frame_width, 60), (0, 0, 0), -1)
         cv2.putText(frame, status_text, (10, 40),

@@ -17,7 +17,7 @@ FEATURES_DIR = "features"
 LABELS = ["nao_quedas", "quedas"]
 
 # Quantos frames vamos analisar por vez (ex: 30 frames = 1 segundo de vídeo a 30fps)
-SEQUENCE_LENGTH = 30
+SEQUENCE_LENGTH = 45
 # Modelo final que será salvo
 MODEL_NAME = "modelo_quedas.keras"
 
@@ -167,7 +167,7 @@ def main():
     history = model.fit(
         X_train, y_train,
         batch_size=32,
-        epochs=20,
+        epochs=75,
         validation_data=(X_test, y_test)
     )
     print("--- Treinamento Concluído ---")
