@@ -23,7 +23,7 @@ except Exception as e:
     print(f"Verifique se o arquivo existe e se o tensorflow está instalado.")
     exit()
 
-SEQUENCE_LENGTH = 30
+SEQUENCE_LENGTH = 45
 LABELS = ["NORMAL", "QUEDA"]
 FALL_CONFIDENCE_THRESHOLD = 0.8  # Você pode ajustar isso (ex: 0.7)
 ALERT_DURATION_SECONDS = 5
