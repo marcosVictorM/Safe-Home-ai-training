@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 # --- Configurações ---
 FEATURES_DIR = "features"
+# versão 2 vencedora
 # IMPORTANTE: A ordem importa!
 # "nao_quedas" será o RÓTULO 0 (classe negativa)
 # "quedas" será o RÓTULO 1 (classe positiva)
@@ -141,7 +142,7 @@ def main():
     history = model.fit(
         X_train, y_train,
         batch_size=32,
-        epochs=80, # 30 épocas (aumentamos de 20)
+        epochs=30, # 30 épocas (aumentamos de 20)
         validation_data=(X_test, y_test),
         class_weight=class_weights  # <<<--- A MÁGICA ACONTECE AQUI
     )

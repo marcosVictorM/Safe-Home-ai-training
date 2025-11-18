@@ -12,7 +12,7 @@ from tensorflow.keras.models import load_model
 
 # --- Configurações ---
 # Carregue o modelo V2 que você acabou de treinar
-MODEL_PATH = "modelo_quedas_v2.keras"
+MODEL_PATH = "modelo_quedas_seq_60.keras"
 FALL_TRIGGER_MESSAGE = "FALL_DETECTED_TRIGGER"
 
 print(f"Carregando modelo '{MODEL_PATH}'...")
@@ -23,13 +23,13 @@ except Exception as e:
     print(f"ERRO: Não foi possível carregar o modelo. {e}")
     exit()
 
-# Configurações do modelo (DEVEM ser as mesmas do treino v2)
-SEQUENCE_LENGTH = 45 # Use o mesmo valor do seu ai_train_v2.py (45)
+# Configurações do modelo 
+SEQUENCE_LENGTH = 60 
 NUM_FEATURES = 135 # 132 (pose) + 3 (extras)
 
 LABELS = ["NORMAL", "QUEDA"]
-FALL_CONFIDENCE_THRESHOLD = 0.8 
-ALERT_DURATION_SECONDS = 5 
+FALL_CONFIDENCE_THRESHOLD = 0.95 
+ALERT_DURATION_SECONDS = 3 
 CONFIRMATION_FRAMES_THRESHOLD = 15 
 
 # --- Inicialização ---
