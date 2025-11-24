@@ -17,16 +17,16 @@ FEATURES_DIR = "features"
 # "quedas" será o RÓTULO 1 (classe positiva)
 LABELS = ["nao_quedas", "quedas"] 
 
-# Usamos 45 para dar mais contexto (ajuda a diferenciar queda de deitar)
-SEQUENCE_LENGTH = 45
-MODEL_NAME = "modelo_quedas_v2.keras" # Salvar como um novo modelo
+# Usamos 60 para dar mais contexto (ajuda a diferenciar queda de deitar)
+SEQUENCE_LENGTH = 60
+MODEL_NAME = "modelo_quedas_seq_60.keras" # Nome padronizado
 
 # --- Função de Carregar Dados (Modificada) ---
 def load_data():
     X = []
     y = []
 
-    print("Carregando e processando dados (v2)...")
+    print(f"Carregando e processando dados (Seq={SEQUENCE_LENGTH})...")
     
     for label_index, label in enumerate(LABELS):
         folder_path = os.path.join(FEATURES_DIR, label)
@@ -51,7 +51,7 @@ def load_data():
                 return None, None
 
             # Fatiamento (sliding window)
-            step = SEQUENCE_LENGTH // 2 # 22
+            step = SEQUENCE_LENGTH // 2 
             
             for i in range(0, video_data.shape[0] - SEQUENCE_LENGTH, step):
                 chunk = video_data[i : i + SEQUENCE_LENGTH]
@@ -78,8 +78,8 @@ def plot_history(history):
     ax2.plot(history.history['val_loss'], label='Perda (Validação)')
     ax2.set_xlabel('Época'); ax2.set_ylabel('Perda (Loss)'); ax2.legend()
     ax2.set_title('Histórico de Perda')
-    plt.savefig('grafico_treinamento_v2.png')
-    print("\nGráfico do histórico salvo como 'grafico_treinamento_v2.png'")
+    plt.savefig('grafico_treinamento_seq_60.png')
+    print("\nGráfico do histórico salvo como 'grafico_treinamento_seq_60.png'")
 
 def main():
     # 1. Carregar os Dados
@@ -116,8 +116,8 @@ def main():
 
     # 4. Construir o Modelo (com input_shape=135)
     
-    # Forma da entrada agora é (45, 135)
-    input_shape = (X.shape[1], X.shape[2]) # (45, 135)
+    # Forma da entrada agora é (60, 135)
+    input_shape = (X.shape[1], X.shape[2]) 
     
     model = Sequential([
         LSTM(64, return_sequences=True, input_shape=input_shape),
@@ -137,19 +137,19 @@ def main():
     model.summary() 
 
     # 5. Treinar o Modelo (com class_weight)
-    print("\n--- Iniciando o Treinamento (v2) ---")
+    print("\n--- Iniciando o Treinamento (v2 - Seq 60) ---")
     
     history = model.fit(
         X_train, y_train,
         batch_size=32,
-        epochs=30, # 30 épocas (aumentamos de 20)
+        epochs=30, # 30 épocas
         validation_data=(X_test, y_test),
         class_weight=class_weights  # <<<--- A MÁGICA ACONTECE AQUI
     )
     print("--- Treinamento Concluído ---")
 
     # 6. Avaliar
-    print("\n--- Avaliação do Modelo (v2) ---")
+    print("\n--- Avaliação do Modelo ---")
     y_pred_proba = model.predict(X_test)
     y_pred = (y_pred_proba > 0.5).astype(int)
 
